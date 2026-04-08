@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="dashboard-columns">
+  <div class="left-column">
+    <section class="panel">
+      <div class="panel-header">
+        <span class="panel-kicker">Patient Select</span>
+        <h2>Pathology AI Module</h2>
+      </div>
+      <div class="patient-list">
+        {% for patient in patients %}
+          <a class="patient-item {% if patient.id == selected_patient.id %}patient-item--active{% endif %}" href="{{ url_for('pathology_ai', patient_id=patient.id) }}">
+            <div>
+              <strong>{{ patient.name }}</strong>
+              <p>{{ patient.specimen }} · {{ patient.doctor.name }}</p>
+            </div>
+            <div class="patient-item__meta">
+              <span class="badge">{{ patient.risk_level }}</span>
+              <small>{{ patient.prediction_label }}</small>
+            </div>
+          </a>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header">
+        <span class="panel-kicker">Current AI Label</span>
+        <h2>{{ selected_patient.prediction_label }}</h2>
+      </div>
+      <div class="badge-row">
+        <span class="status-chip status-chip--{{ selected_patient.tone }}">{{ selected_patient.cancer_label }}</span>
+        <span class="status-chip status-chip--neutral">{{ selected_patient.health_label }}</span>
+      </div>
+      <div class="detail-grid">
+        <article class="detail-card"><span>Diet plan</span><strong>{{ selected_patient.diet_plan }}</strong></article>
+        <article class="detail-card"><span>Review status</span><strong>{{ selected_patient.review_status }}</strong></article>
+        <article class="detail-card"><span>Care plan</span><strong>{{ selected_patient.care_plan_label }}</strong></article>
+        <article class="detail-card"><span>Next step</span><strong>{{ selected_patient.next_appointment }}</strong></article>
+        <article class="detail-card"><span>Nutrition label</span><strong>{{ selected_patient.nutrition_label }}</strong></article>
+        <article class="detail-card"><span>Care bundle</span><strong>{{ selected_patient.care_bundle_status }}</strong></article>
+      </div>
+      <div class="workflow-actions">
+        <a class="ghost-button" href="{{ url_for('patient_detail', patient_id=selected_patient.id) }}">Open patient care page</a>
+        <form method="post" action="{{ url_for('manage_patient', patient_id=selected_patient.id) }}">
+          <input type="hidden" name="action" value="apply_ai_bundle">
+          <input type="hidden" name="return_to" value="pathology_ai">
+          <button class="ghost-button" type="submit">Apply AI care bundle</button>
+        </form>
+        <form method="post" action="{{ url_for('manage_patient', patient_id=selected_patient.id) }}">
+          <input type="hidden" name="action" value="tumor_board">
+          <input type="hidden" name="return_to" value="pathology_ai">
+          <button class="ghost-button" type="submit">Send to tumor board</button>
+        </form>
+      </div>
+    </section>
+
+    <section class="panel upload-panel">
+      <div class="panel-header">
+        <span class="panel-kicker">Upload</span>
+        <h2>Analyze Slide for {{ selected_patient.name }}</h2>
+      </div>
+      {% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+      <form class="upload-form" method="post" enctype="multipart/form-data">
+        <input type="hidden" name="patient_id" value="{{ selected_patient.id }}">
+        <label class="upload-zone" for="image-input">
+          <input id="image-input" type="file" name="image" accept="image/*" required>
+          <span class="upload-title">Drop slide image here or click to browse</span>
+          <span class="upload-hint">Fused prediction plus ConvNeXt Grad-CAM for the selected patient.</span>
+        </label>
+        <button class="cta" type="submit">Run AI Analysis</button>
+      </form>
+    </section>
+
+    <section class="panel visual-panel">
+      <div class="panel-header">
+        <span class="panel-kicker">Explainability</span>
+        <h2>Original Image and Grad-CAM</h2>
+      </div>
+      <div class="visual-grid">
+        <article class="visual-card">
+          <div class="visual-card__header"><span>Uploaded Image</span></div>
+          {% if uploaded_image %}<img src="{{ uploaded_image }}" alt="Uploaded histopathology image">{% else %}<div class="visual-empty">The uploaded image will appear here.</div>{% endif %}
+        </article>
+        <article class="visual-card">
+          <div class="visual-card__header"><span>Grad-CAM Overlay</span><small>ConvNeXt branch only</small></div>
+          {% if xai_error %}<div class="alert alert-error visual-alert">{{ xai_error }}</div>{% endif %}
+          {% if gradcam_image %}<img src="{{ gradcam_image }}" alt="Grad-CAM explanation overlay">{% else %}<div class="visual-empty">The explanation heatmap will appear here after inference.</div>{% endif %}
+        </article>
+      </div>
+    </section>
+  </div>
+
+  <div class="right-column">
+    <section class="panel panel-results">
+      <div class="panel-header">
+        <span class="panel-kicker">Diagnosis</span>
+        <h2>Prediction Summary</h2>
+      </div>
+      {% if result %}
+        <div class="result-hero">
+          <div>
+            <span class="result-tag">{{ result.prediction.group }}</span>
+            <h3>{{ result.prediction.label }}</h3>
+            <p>{{ result.prediction.summary }}</p>
+          </div>
+          <div class="confidence-pill"><span>Fusion confidence</span><strong>{{ result.prediction.confidence }}%</strong></div>
+        </div>
+        <div class="stat-grid">
+          <article class="stat-card"><span>ConvNeXt</span><strong>{{ result.model_breakdown.convnext }}%</strong></article>
+          <article class="stat-card"><span>Phikon</span><strong>{{ result.model_breakdown.phikon }}%</strong></article>
+          <article class="stat-card"><span>Fusion</span><strong>{{ result.model_breakdown.fusion }}%</strong></article>
+        </div>
+        <div class="probability-table probability-table--full">
+          <div class="table-head"><span>Class</span><span>ConvNeXt</span><span>Phikon</span><span>Fusion</span></div>
+          {% for item in result.class_probabilities %}
+            <div class="table-row table-row--matrix">
+              <div class="probability-copy"><strong>{{ item.label }}</strong><span>{{ item.class_key }}</span></div>
+              <strong class="probability-number">{{ item.convnext_confidence }}%</strong>
+              <strong class="probability-number">{{ item.phikon_confidence }}%</strong>
+              <div class="probability-meter">
+                <div class="probability-meter__track"><div class="probability-meter__fill" style="width: {{ item.fusion_confidence }}%;"></div></div>
+                <strong class="probability-number">{{ item.fusion_confidence }}%</strong>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="empty-state"><h3>No inference yet</h3><p>Upload a slide to generate prediction and explainability.</p></div>
+      {% endif %}
+    </section>
+
+    <section class="panel care-panel">
+      <div class="panel-header">
+        <span class="panel-kicker">Clinical Recommendation</span>
+        <h2>{{ analysis_summary.headline }}</h2>
+      </div>
+      <div class="care-hero"><p>{{ analysis_summary.care_path }}</p></div>
+      <div class="care-columns">
+        <article class="care-list-card"><h3>Recommended medications</h3><ul class="clean-list">{% for item in analysis_summary.recommended_medications %}<li>{{ item }}</li>{% endfor %}</ul></article>
+        <article class="care-list-card"><h3>Next actions</h3><ul class="clean-list">{% for item in analysis_summary.next_steps %}<li>{{ item }}</li>{% endfor %}</ul></article>
+      </div>
+      <div class="care-columns">
+        <article class="care-list-card"><h3>Clinical watchlist</h3><ul class="clean-list">{% for item in analysis_summary.watch_items %}<li>{{ item }}</li>{% endfor %}</ul></article>
+        <article class="care-list-card"><h3>Workflow labels</h3><ul class="clean-list"><li>{{ analysis_summary.care_plan_label }}</li><li>{{ analysis_summary.nutrition_label }}</li><li>{{ analysis_summary.disposition }}</li><li>{{ analysis_summary.bundle_name }}</li></ul></article>
+      </div>
+      <div class="care-columns">
+        <article class="care-list-card"><h3>Foods to eat</h3><ul class="clean-list">{% for item in analysis_summary.foods_to_eat %}<li>{{ item }}</li>{% endfor %}</ul></article>
+        <article class="care-list-card"><h3>Foods to avoid</h3><ul class="clean-list">{% for item in analysis_summary.foods_to_avoid %}<li>{{ item }}</li>{% endfor %}</ul></article>
+      </div>
+    </section>
+  </div>
+</section>
+{% endblock %}

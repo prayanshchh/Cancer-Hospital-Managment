@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel">
+  <div class="panel-header">
+    <span class="panel-kicker">Patients</span>
+    <h2>Patient Directory</h2>
+  </div>
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>MRN</th>
+          <th>Patient</th>
+          <th>Doctor</th>
+          <th>Cancer label</th>
+          <th>AI class</th>
+          <th>Health label</th>
+          <th>Diet plan</th>
+          <th>Next step</th>
+          <th>Prescriptions</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for patient in patients %}
+          <tr>
+            <td>{{ patient.mrn }}</td>
+            <td>
+              <strong>{{ patient.name }}</strong><br>
+              <span class="cell-muted">{{ patient.clinic }} · {{ patient.specimen }}</span>
+            </td>
+            <td><a href="{{ url_for('doctor_detail', doctor_id=patient.doctor.id) }}">{{ patient.doctor.name }}</a></td>
+            <td>{{ patient.cancer_label }}</td>
+            <td>{{ patient.prediction_label }}</td>
+            <td>{{ patient.health_label }}</td>
+            <td>{{ patient.diet_plan }}</td>
+            <td>{{ patient.next_appointment }}</td>
+            <td>{{ patient.prescription_count }}</td>
+            <td class="table-actions">
+              <a class="table-action" href="{{ url_for('patient_detail', patient_id=patient.id) }}">View</a>
+              <a class="table-action" href="{{ url_for('pathology_ai', patient_id=patient.id) }}">AI</a>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

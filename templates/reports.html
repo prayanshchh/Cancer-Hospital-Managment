@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="dashboard-columns">
+  <div class="left-column">
+    <section class="panel">
+      <div class="panel-header"><span class="panel-kicker">Reports</span><h2>Key Metrics</h2></div>
+      <div class="command-grid command-grid--four">
+        {% for metric in metrics %}
+          <article class="command-card"><span class="command-card__label">{{ metric.label }}</span><strong>{{ metric.value }}</strong></article>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header"><span class="panel-kicker">AI Report</span><h2>Patient Analysis Status</h2></div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>Patient</th><th>Cancer label</th><th>AI class</th><th>Confidence</th><th>Diet</th><th>Prescriptions</th><th>Review</th></tr></thead>
+          <tbody>
+            {% for patient in patients %}
+              <tr>
+                <td><a href="{{ url_for('patient_detail', patient_id=patient.id) }}">{{ patient.name }}</a></td>
+                <td>{{ patient.cancer_label }}</td>
+                <td>{{ patient.prediction_label }}</td>
+                <td>{{ patient.prediction_confidence }}%</td>
+                <td>{{ patient.diet_plan }}</td>
+                <td>{{ patient.prescription_count }}</td>
+                <td>{{ patient.review_status }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+  <div class="right-column">
+    <section class="panel">
+      <div class="panel-header"><span class="panel-kicker">Operational Alerts</span><h2>Escalations</h2></div>
+      <div class="alerts-row">
+        {% for alert in alerts %}
+          <article class="alert-chip"><span>{{ alert.level }}</span><strong>{{ alert.text }}</strong></article>
+        {% endfor %}
+      </div>
+    </section>
+  </div>
+</section>
+{% endblock %}

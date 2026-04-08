@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="dashboard-columns">
+  <div class="left-column">
+    <section class="panel">
+      <div class="panel-header"><span class="panel-kicker">Admin</span><h2>System Oversight</h2></div>
+      <div class="alerts-row">
+        {% for alert in alerts %}
+          <article class="alert-chip"><span>{{ alert.level }}</span><strong>{{ alert.text }}</strong></article>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header"><span class="panel-kicker">Ward Status</span><h2>Unit Readiness</h2></div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>Ward</th><th>Occupancy</th><th>Nurse</th><th>Status</th></tr></thead>
+          <tbody>
+            {% for ward in wards %}
+              <tr>
+                <td>{{ ward.name }}</td>
+                <td>{{ ward.occupancy }}</td>
+                <td>{{ ward.nurse_in_charge }}</td>
+                <td>{{ ward.status }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+  <div class="right-column">
+    <section class="panel">
+      <div class="panel-header"><span class="panel-kicker">Staffing</span><h2>Doctor Coverage</h2></div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>Doctor</th><th>Specialty</th><th>Patients</th><th>Pending</th><th>Prescriptions</th><th>Follow-ups</th><th>Critical</th></tr></thead>
+          <tbody>
+            {% for doctor in doctors %}
+              <tr>
+                <td><a href="{{ url_for('doctor_detail', doctor_id=doctor.id) }}">{{ doctor.name }}</a></td>
+                <td>{{ doctor.specialty }}</td>
+                <td>{{ doctor.patients|length }}</td>
+                <td>{{ doctor.pending_reviews }}</td>
+                <td>{{ doctor.prescriptions_written }}</td>
+                <td>{{ doctor.scheduled_followups }}</td>
+                <td>{{ doctor.critical_cases }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</section>
+{% endblock %}

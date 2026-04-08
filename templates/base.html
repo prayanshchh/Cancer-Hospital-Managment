@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ page_title }} · {{ app_name }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+  <div class="page-shell">
+    <header class="hero hero--compact">
+      <div class="hero-copy">
+        <span class="eyebrow">Oncology Operations Platform</span>
+        <h1>{{ app_name }}</h1>
+        <p>{{ page_intro }}</p>
+      </div>
+      <div class="hero-actions">
+        <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Toggle color theme">
+          <span class="theme-toggle__sun">Light</span>
+          <span class="theme-toggle__moon">Dark</span>
+        </button>
+      </div>
+    </header>
+
+    <nav class="panel app-nav">
+      {% for item in navigation %}
+        <a class="app-nav__link {% if active_page == item.endpoint %}app-nav__link--active{% endif %}" href="{{ url_for(item.endpoint) }}">
+          {{ item.label }}
+        </a>
+      {% endfor %}
+    </nav>
+
+    {% if page_message %}
+      <div class="alert alert-success page-banner">{{ page_message }}</div>
+    {% endif %}
+
+    {% block content %}{% endblock %}
+  </div>
+
+  <script src="{{ url_for('static', filename='theme.js') }}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

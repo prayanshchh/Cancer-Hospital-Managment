@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="dashboard-columns">
+  <div class="left-column">
+    <section class="panel">
+      <div class="panel-header">
+        <span class="panel-kicker">Wards</span>
+        <h2>Ward Management</h2>
+      </div>
+      <div class="card-grid">
+        {% for ward in wards %}
+          <article class="record-card">
+            <span class="badge">{{ ward.status }}</span>
+            <h3>{{ ward.name }}</h3>
+            <div class="record-meta"><strong>Occupancy</strong><span>{{ ward.occupancy }}</span></div>
+            <div class="record-meta"><strong>Nurse in charge</strong><span>{{ ward.nurse_in_charge }}</span></div>
+          </article>
+        {% endfor %}
+      </div>
+    </section>
+  </div>
+  <div class="right-column">
+    <section class="panel">
+      <div class="panel-header">
+        <span class="panel-kicker">Patients by Ward</span>
+        <h2>Current inpatient labels</h2>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>Patient</th><th>Ward</th><th>Cancer label</th><th>Disposition</th><th>Status</th></tr></thead>
+          <tbody>
+            {% for patient in patients %}
+              <tr>
+                <td><a href="{{ url_for('patient_detail', patient_id=patient.id) }}">{{ patient.name }}</a></td>
+                <td>{{ patient.ward }}</td>
+                <td>{{ patient.cancer_label }}</td>
+                <td>{{ patient.disposition }}</td>
+                <td>{{ patient.review_status }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</section>
+{% endblock %}

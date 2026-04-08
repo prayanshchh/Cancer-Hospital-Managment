@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel">
+  <div class="panel-header">
+    <span class="panel-kicker">Pharmacy</span>
+    <h2>Medication Inventory</h2>
+  </div>
+  <div class="card-grid">
+    {% for item in items %}
+      <article class="record-card">
+        <span class="badge">{{ item.status }}</span>
+        <h3>{{ item.name }}</h3>
+        <p>{{ item.category }}</p>
+        <div class="record-meta"><strong>Stock</strong><span>{{ item.stock }}</span></div>
+        <div class="record-meta"><strong>Allocated to patients</strong><span>{{ item.allocated }}</span></div>
+      </article>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

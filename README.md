@@ -33,6 +33,21 @@ After training the two models separately, their predictions are combined in a **
 
 ---
 
+## Environment Setup
+
+This project can be run on **Python 3.14**, but you need current package versions with prebuilt wheels for Apple Silicon.
+
+### Recommended setup
+
+```bash
+python -m pip install --upgrade pip setuptools wheel
+pip install -r requirements.txt
+```
+
+If `pip` still tries to build old packages from source, make sure you are using the updated `requirements.txt` from this repository and not a cached older copy.
+
+---
+
 ## Dataset
 
 The project uses the **LC25000 histopathology dataset** in an augmented folder structure: `Augmented_LC25000_train/`.
@@ -242,6 +257,56 @@ The project is organized into three notebooks:
 - stacked ensemble with logistic regression
 - random sample testing
 - explainable AI analysis using Captum
+
+---
+
+## Docker Deployment
+
+The repository now includes a full Docker setup for the **Cancer Hospital Management App**, including the fused pathology model and observability stack.
+
+### What runs in Docker
+
+- the Flask app on `http://localhost:7860`
+- Prometheus on `http://localhost:9090`
+- Grafana on `http://localhost:3000`
+- cAdvisor on `http://localhost:8080`
+
+The Docker image pre-downloads the Hugging Face base backbones during build, so the container does not need to fetch them at runtime.
+
+### Start the full stack
+
+```bash
+docker compose up --build
+```
+
+### Grafana login
+
+- username: `admin`
+- password: `admin`
+
+### Metrics included
+
+- per-route HTTP hits
+- per-route request latency
+- inference counts
+- prediction and Grad-CAM latency
+- model artifact readiness
+- app process CPU and memory
+- container CPU and memory through cAdvisor
+
+### Optional GPU monitoring
+
+If you are on an **NVIDIA Linux Docker host**, you can also start the DCGM exporter:
+
+```bash
+docker compose --profile gpu up --build
+```
+
+Important:
+
+- GPU monitoring inside Docker is **not available on Apple Silicon macOS containers**
+- on macOS you will still get app metrics, route hits, CPU, RAM, and container monitoring
+- the optional GPU profile is meant for NVIDIA-enabled Docker environments
 
 ---
 

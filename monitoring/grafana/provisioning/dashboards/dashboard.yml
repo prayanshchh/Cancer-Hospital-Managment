@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: Cancer Hospital
+    orgId: 1
+    folder: Cancer Hospital
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards

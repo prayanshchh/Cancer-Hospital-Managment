@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel">
+  <div class="panel-header">
+    <span class="panel-kicker">Appointments</span>
+    <h2>Daily Schedule</h2>
+  </div>
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead><tr><th>Slot</th><th>Patient</th><th>Doctor</th><th>Type</th><th>Status</th></tr></thead>
+      <tbody>
+        {% for item in appointments %}
+          <tr>
+            <td>{{ item.time }}</td>
+            <td><a href="{{ url_for('patient_detail', patient_id=item.patient.id) }}">{{ item.patient.name }}</a></td>
+            <td><a href="{{ url_for('doctor_detail', doctor_id=item.doctor.id) }}">{{ item.doctor.name }}</a></td>
+            <td>{{ item.type }}</td>
+            <td>{{ item.status }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

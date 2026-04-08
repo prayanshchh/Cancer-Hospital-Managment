@@ -1,0 +1,300 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="dashboard-columns">
+  <div class="left-column">
+    <section class="panel">
+      <div class="panel-header">
+        <span class="panel-kicker">Patient</span>
+        <h2>{{ patient.name }}</h2>
+      </div>
+
+      <div class="badge-row">
+        <span class="status-chip status-chip--{{ patient.tone }}">{{ patient.cancer_label }}</span>
+        <span class="status-chip status-chip--neutral">{{ patient.triage_label }}</span>
+        <span class="status-chip status-chip--neutral">{{ patient.health_label }}</span>
+      </div>
+
+      <div class="detail-grid">
+        <article class="detail-card"><span>MRN</span><strong>{{ patient.mrn }}</strong></article>
+        <article class="detail-card"><span>Assigned doctor</span><strong><a href="{{ url_for('doctor_detail', doctor_id=patient.doctor.id) }}">{{ patient.doctor.name }}</a></strong></article>
+        <article class="detail-card"><span>Ward</span><strong>{{ patient.ward }}</strong></article>
+        <article class="detail-card"><span>Review status</span><strong>{{ patient.review_status }}</strong></article>
+        <article class="detail-card"><span>AI confidence</span><strong>{{ patient.prediction_confidence }}%</strong></article>
+        <article class="detail-card"><span>Wellness score</span><strong>{{ patient.wellness_score }}</strong></article>
+        <article class="detail-card"><span>Care plan</span><strong>{{ patient.care_plan_label }}</strong></article>
+        <article class="detail-card"><span>Nutrition label</span><strong>{{ patient.nutrition_label }}</strong></article>
+        <article class="detail-card"><span>Disposition</span><strong>{{ patient.disposition }}</strong></article>
+        <article class="detail-card"><span>Next step</span><strong>{{ patient.next_appointment }}</strong></article>
+      </div>
+
+      <div class="patient-summary">
+        <p>{{ patient.case_summary }}</p>
+      </div>
+
+      <div class="workflow-actions">
+        <a class="ghost-button" href="{{ url_for('pathology_ai', patient_id=patient.id) }}">Run pathology AI</a>
+        <form method="post" action="{{ url_for('manage_patient', patient_id=patient.id) }}">
+          <input type="hidden" name="action" value="apply_ai_bundle">
+          <input type="hidden" name="return_to" value="patient_detail">
+          <button class="ghost-button" type="submit">Apply AI care bundle</button>
+        </form>
+        <button class="ghost-button" type="button" data-modal-target="prescription-modal">Write prescription</button>
+        <button class="ghost-button" type="button" data-modal-target="diet-modal">Assign diet</button>
+        <button class="ghost-button" type="button" data-modal-target="note-modal">Doctor note</button>
+        <button class="ghost-button" type="button" data-modal-target="followup-modal">Schedule follow-up</button>
+        {% if next_patient %}
+          <a class="ghost-button" href="{{ url_for('patient_detail', patient_id=next_patient.id) }}">Next patient</a>
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header">
+        <span class="panel-kicker">History</span>
+        <h2>Clinical Timeline</h2>
+      </div>
+      <div class="history-list">
+        {% for event in patient.history %}
+          <article class="timeline-item">
+            <span>{{ event.date }}</span>
+            <strong>{{ event.event }}</strong>
+            <p>{{ event.detail }}</p>
+          </article>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header">
+        <span class="panel-kicker">Appointments</span>
+        <h2>Upcoming Case Workflow</h2>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Type</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in appointments %}
+              <tr>
+                <td>{{ item.time }}</td>
+                <td>{{ item.type }}</td>
+                <td>{{ item.status }}</td>
+              </tr>
+            {% else %}
+              <tr>
+                <td colspan="3">No scheduled appointments found.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <div class="right-column">
+    <section class="panel">
+      <div class="panel-header">
+        <span class="panel-kicker">AI Care Plan</span>
+        <h2>{{ care_guidance.headline }}</h2>
+      </div>
+
+      <div class="care-hero">
+        <p>{{ care_guidance.care_path }}</p>
+      </div>
+
+      <div class="care-columns">
+        <article class="care-list-card">
+          <h3>Foods to eat</h3>
+          <ul class="clean-list">
+            {% for item in patient.foods_to_eat %}
+              <li>{{ item }}</li>
+            {% endfor %}
+          </ul>
+        </article>
+
+        <article class="care-list-card">
+          <h3>Foods to avoid</h3>
+          <ul class="clean-list">
+            {% for item in patient.foods_to_avoid %}
+              <li>{{ item }}</li>
+            {% endfor %}
+          </ul>
+        </article>
+      </div>
+
+      <div class="care-columns">
+        <article class="care-list-card">
+          <h3>Clinical watchlist</h3>
+          <ul class="clean-list">
+            {% for item in patient.watch_items %}
+              <li>{{ item }}</li>
+            {% endfor %}
+          </ul>
+        </article>
+
+        <article class="care-list-card">
+          <h3>Next actions</h3>
+          <ul class="clean-list">
+            {% for item in care_guidance.next_steps %}
+              <li>{{ item }}</li>
+            {% endfor %}
+          </ul>
+        </article>
+      </div>
+
+      <article class="note-card">
+        <h3>Diet note</h3>
+        <p>{{ patient.nutrition_note }}</p>
+      </article>
+
+      <article class="note-card note-card--tight">
+        <h3>Care bundle status</h3>
+        <p>{{ patient.care_bundle_status }}</p>
+      </article>
+
+      <article class="note-card note-card--tight">
+        <h3>Doctor note</h3>
+        <p>{{ patient.doctor_note }}</p>
+      </article>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header">
+        <span class="panel-kicker">Prescription Desk</span>
+        <h2>Assigned Medicines</h2>
+      </div>
+
+      <article class="note-card">
+        <h3>Current home medications</h3>
+        <div class="pill-list">
+          {% for item in patient.medications %}
+            <span class="pill">{{ item }}</span>
+          {% endfor %}
+        </div>
+      </article>
+
+      {% if patient.doctor_prescriptions %}
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Medicine</th>
+                <th>Dose</th>
+                <th>Duration</th>
+                <th>Instructions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in patient.doctor_prescriptions %}
+                <tr>
+                  <td>{{ item.medicine }}</td>
+                  <td>{{ item.dose }}</td>
+                  <td>{{ item.duration }}</td>
+                  <td>{{ item.instructions }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="empty-state">
+          <h3>No doctor prescription yet</h3>
+          <p>Use the prescription popup to assign medicines for this patient.</p>
+        </div>
+      {% endif %}
+
+      <div class="pill-list">
+        {% for med in patient.recommended_medicines %}
+          <span class="pill">{{ med }}</span>
+        {% endfor %}
+      </div>
+
+      <div class="workflow-actions">
+        <form method="post" action="{{ url_for('manage_patient', patient_id=patient.id) }}">
+          <input type="hidden" name="action" value="mark_reviewed">
+          <input type="hidden" name="return_to" value="patient_detail">
+          <button class="ghost-button" type="submit">Mark reviewed</button>
+        </form>
+        <form method="post" action="{{ url_for('manage_patient', patient_id=patient.id) }}">
+          <input type="hidden" name="action" value="tumor_board">
+          <input type="hidden" name="return_to" value="patient_detail">
+          <button class="ghost-button" type="submit">Send to tumor board</button>
+        </form>
+        <button class="ghost-button" type="button" data-modal-target="followup-modal">Plan follow-up</button>
+      </div>
+    </section>
+  </div>
+</section>
+
+<div class="modal-overlay {% if open_modal == 'prescription' %}modal-overlay--open{% endif %}" id="prescription-modal">
+  <div class="modal-card">
+    <div class="modal-card__header">
+      <h3>Write prescription</h3>
+      <button type="button" class="modal-close" data-modal-close>&times;</button>
+    </div>
+    <form method="post" action="{{ url_for('manage_patient', patient_id=patient.id) }}" class="modal-form">
+      <input type="hidden" name="action" value="prescribe">
+      <input type="hidden" name="return_to" value="patient_detail">
+      <label class="field"><span>Medicine</span><input type="text" name="medicine" placeholder="Example: Ondansetron"></label>
+      <label class="field"><span>Dose</span><input type="text" name="dose" placeholder="Example: 8 mg twice daily"></label>
+      <label class="field"><span>Duration</span><input type="text" name="duration" placeholder="Example: 5 days"></label>
+      <label class="field"><span>Instructions</span><textarea name="instructions" rows="4" placeholder="Administration instructions"></textarea></label>
+      <button class="cta" type="submit">Save prescription</button>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay {% if open_modal == 'diet' %}modal-overlay--open{% endif %}" id="diet-modal">
+  <div class="modal-card">
+    <div class="modal-card__header">
+      <h3>Assign diet plan</h3>
+      <button type="button" class="modal-close" data-modal-close>&times;</button>
+    </div>
+    <form method="post" action="{{ url_for('manage_patient', patient_id=patient.id) }}" class="modal-form">
+      <input type="hidden" name="action" value="assign_diet">
+      <input type="hidden" name="return_to" value="patient_detail">
+      <label class="field"><span>Diet plan name</span><input type="text" name="diet_name" value="{{ patient.diet_plan }}"></label>
+      <label class="field"><span>Foods to eat</span><textarea name="foods_to_eat" rows="4">{{ patient.foods_to_eat|join(', ') }}</textarea></label>
+      <label class="field"><span>Foods to avoid</span><textarea name="foods_to_avoid" rows="4">{{ patient.foods_to_avoid|join(', ') }}</textarea></label>
+      <label class="field"><span>Diet note</span><textarea name="diet_note" rows="4">{{ patient.nutrition_note }}</textarea></label>
+      <button class="cta" type="submit">Save diet plan</button>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay {% if open_modal == 'note' %}modal-overlay--open{% endif %}" id="note-modal">
+  <div class="modal-card">
+    <div class="modal-card__header">
+      <h3>Doctor note</h3>
+      <button type="button" class="modal-close" data-modal-close>&times;</button>
+    </div>
+    <form method="post" action="{{ url_for('manage_patient', patient_id=patient.id) }}" class="modal-form">
+      <input type="hidden" name="action" value="save_note">
+      <input type="hidden" name="return_to" value="patient_detail">
+      <label class="field"><span>Clinical note</span><textarea name="doctor_note" rows="6">{{ patient.doctor_note }}</textarea></label>
+      <button class="cta" type="submit">Save note</button>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay {% if open_modal == 'followup' %}modal-overlay--open{% endif %}" id="followup-modal">
+  <div class="modal-card">
+    <div class="modal-card__header">
+      <h3>Schedule follow-up</h3>
+      <button type="button" class="modal-close" data-modal-close>&times;</button>
+    </div>
+    <form method="post" action="{{ url_for('manage_patient', patient_id=patient.id) }}" class="modal-form">
+      <input type="hidden" name="action" value="schedule_followup">
+      <input type="hidden" name="return_to" value="patient_detail">
+      <label class="field"><span>Follow-up type</span><input type="text" name="follow_up_type" value="{{ patient.follow_up.split(' · ')[0] }}"></label>
+      <label class="field"><span>Slot</span><input type="text" name="follow_up_time" placeholder="Example: 2026-04-10 11:30"></label>
+      <button class="cta" type="submit">Schedule visit</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

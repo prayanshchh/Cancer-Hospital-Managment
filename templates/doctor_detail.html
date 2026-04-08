@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="dashboard-columns">
+  <div class="left-column">
+    <section class="panel">
+      <div class="panel-header">
+        <span class="panel-kicker">Doctor Profile</span>
+        <h2>{{ doctor.name }}</h2>
+      </div>
+      <div class="detail-grid">
+        <article class="detail-card"><span>Role</span><strong>{{ doctor.role }}</strong></article>
+        <article class="detail-card"><span>Specialty</span><strong>{{ doctor.specialty }}</strong></article>
+        <article class="detail-card"><span>Email</span><strong>{{ doctor.email }}</strong></article>
+        <article class="detail-card"><span>Phone</span><strong>{{ doctor.phone }}</strong></article>
+        <article class="detail-card"><span>Pending reviews</span><strong>{{ doctor.pending_reviews }}</strong></article>
+        <article class="detail-card"><span>Critical cases</span><strong>{{ doctor.critical_cases }}</strong></article>
+        <article class="detail-card"><span>Prescriptions</span><strong>{{ doctor.prescriptions_written }}</strong></article>
+        <article class="detail-card"><span>Follow-ups</span><strong>{{ doctor.scheduled_followups }}</strong></article>
+      </div>
+    </section>
+  </div>
+  <div class="right-column">
+    <section class="panel">
+      <div class="panel-header">
+        <span class="panel-kicker">Assigned Patients</span>
+        <h2>{{ doctor.patients|length }} current cases</h2>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Patient</th>
+              <th>Cancer label</th>
+              <th>AI class</th>
+              <th>Diet</th>
+              <th>Next step</th>
+              <th>Prescriptions</th>
+              <th>Review status</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for patient in doctor.patients %}
+              <tr>
+                <td><a href="{{ url_for('patient_detail', patient_id=patient.id) }}">{{ patient.name }}</a></td>
+                <td>{{ patient.cancer_label }}</td>
+                <td>{{ patient.prediction_label }}</td>
+                <td>{{ patient.diet_plan }}</td>
+                <td>{{ patient.next_appointment }}</td>
+                <td>{{ patient.prescription_count }}</td>
+                <td>{{ patient.review_status }}</td>
+                <td class="table-actions">
+                  <a class="table-action" href="{{ url_for('pathology_ai', patient_id=patient.id) }}">AI</a>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</section>
+{% endblock %}

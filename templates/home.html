@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="dashboard-grid dashboard-grid--home">
+  <aside class="panel sidebar-panel">
+    <div class="panel-header">
+      <span class="panel-kicker">Alerts</span>
+      <h2>Today’s escalations</h2>
+    </div>
+    <div class="alerts-row">
+      {% for alert in alerts %}
+        <article class="alert-chip">
+          <span>{{ alert.level }}</span>
+          <strong>{{ alert.text }}</strong>
+        </article>
+      {% endfor %}
+    </div>
+  </aside>
+
+  <div class="main-stack">
+    <section class="panel">
+      <div class="panel-header">
+        <span class="panel-kicker">Overview</span>
+        <h2>Hospital Command Center</h2>
+      </div>
+      <div class="command-grid command-grid--four">
+        <article class="command-card"><span class="command-card__label">Registered patients</span><strong>{{ overview.registered_patients }}</strong></article>
+        <article class="command-card"><span class="command-card__label">Active doctors</span><strong>{{ overview.active_doctors }}</strong></article>
+        <article class="command-card"><span class="command-card__label">Appointments today</span><strong>{{ overview.today_appointments }}</strong></article>
+        <article class="command-card"><span class="command-card__label">Critical alerts</span><strong>{{ overview.critical_alerts }}</strong></article>
+        <article class="command-card"><span class="command-card__label">AI analyzed patients</span><strong>{{ overview.ai_completed }}</strong></article>
+        <article class="command-card"><span class="command-card__label">Tumor board cases</span><strong>{{ overview.tumor_board_cases }}</strong></article>
+        <article class="command-card"><span class="command-card__label">Prescriptions written</span><strong>{{ overview.prescriptions_written }}</strong></article>
+        <article class="command-card"><span class="command-card__label">Follow-ups scheduled</span><strong>{{ overview.followups_scheduled }}</strong></article>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header">
+        <span class="panel-kicker">Patients</span>
+        <h2>Patient Operations Table</h2>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>MRN</th>
+              <th>Patient</th>
+              <th>Doctor</th>
+              <th>Cancer label</th>
+              <th>AI class</th>
+              <th>Confidence</th>
+              <th>Diet</th>
+              <th>Next step</th>
+              <th>Review</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for patient in patients %}
+              <tr>
+                <td>{{ patient.mrn }}</td>
+                <td>
+                  <strong><a href="{{ url_for('patient_detail', patient_id=patient.id) }}">{{ patient.name }}</a></strong><br>
+                  <span class="cell-muted">{{ patient.clinic }} · {{ patient.specimen }}</span>
+                </td>
+                <td><a href="{{ url_for('doctor_detail', doctor_id=patient.doctor.id) }}">{{ patient.doctor.name }}</a></td>
+                <td>{{ patient.cancer_label }}</td>
+                <td>{{ patient.prediction_label }}</td>
+                <td>{{ patient.prediction_confidence }}%</td>
+                <td>{{ patient.diet_plan }}</td>
+                <td>{{ patient.next_appointment }}</td>
+                <td>{{ patient.review_status }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header">
+        <span class="panel-kicker">Doctors</span>
+        <h2>Doctor Workload Table</h2>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Doctor</th>
+              <th>Specialty</th>
+              <th>Assigned patients</th>
+              <th>Active cancer cases</th>
+              <th>Pending reviews</th>
+              <th>Prescriptions</th>
+              <th>Follow-ups</th>
+              <th>Critical cases</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for doctor in doctors %}
+              <tr>
+                <td>
+                  <strong><a href="{{ url_for('doctor_detail', doctor_id=doctor.id) }}">{{ doctor.name }}</a></strong><br>
+                  <span class="cell-muted">{{ doctor.role }}</span>
+                </td>
+                <td>{{ doctor.specialty }}</td>
+                <td>{{ doctor.patients|length }}</td>
+                <td>{{ doctor.active_cancer_cases }}</td>
+                <td>{{ doctor.pending_reviews }}</td>
+                <td>{{ doctor.prescriptions_written }}</td>
+                <td>{{ doctor.scheduled_followups }}</td>
+                <td>{{ doctor.critical_cases }}</td>
+                <td class="table-actions">
+                  <a class="table-action" href="{{ url_for('doctor_detail', doctor_id=doctor.id) }}">Open</a>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</section>
+{% endblock %}

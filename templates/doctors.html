@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel">
+  <div class="panel-header">
+    <span class="panel-kicker">Doctors</span>
+    <h2>Doctor Dashboard</h2>
+  </div>
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Doctor</th>
+          <th>Specialty</th>
+          <th>Assigned patients</th>
+          <th>Active cancer cases</th>
+          <th>Pending reviews</th>
+          <th>Prescriptions</th>
+          <th>Follow-ups</th>
+          <th>Critical cases</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for doctor in doctors %}
+          <tr>
+            <td>
+              <strong>{{ doctor.name }}</strong><br>
+              <span class="cell-muted">{{ doctor.role }}</span>
+            </td>
+            <td>{{ doctor.specialty }}</td>
+            <td>{{ doctor.patients|length }}</td>
+            <td>{{ doctor.active_cancer_cases }}</td>
+            <td>{{ doctor.pending_reviews }}</td>
+            <td>{{ doctor.prescriptions_written }}</td>
+            <td>{{ doctor.scheduled_followups }}</td>
+            <td>{{ doctor.critical_cases }}</td>
+            <td class="table-actions">
+              <a class="table-action" href="{{ url_for('doctor_detail', doctor_id=doctor.id) }}">View</a>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}
