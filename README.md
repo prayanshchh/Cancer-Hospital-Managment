@@ -262,16 +262,47 @@ The project is organized into three notebooks:
 
 ## Docker Deployment
 
-The repository now includes a full Docker setup for the **Cancer Hospital Management App**, including the fused pathology model and observability stack.
+The repository now includes a split deployment for the **Cancer Hospital Management App**:
 
-### What runs in Docker
+- a **host-side model API** that loads the fused pathology stack locally
+- a **Dockerized hospital UI + monitoring stack** that calls that API over HTTP
 
-- the Flask app on `http://localhost:7860`
+### 1. Start the model API on your local machine
+
+Install the Python dependencies in your local environment:
+
+```bash
+pip install -r requirements.txt
+```
+
+Then start the inference server from the project root:
+
+```bash
+python model_service.py --host 0.0.0.0 --port 8001
+```
+
+This local service loads:
+
+- `ultimate_patho_fusion_v1.pkl`
+- `convnext_v2_epoch_30.pth`
+- `phikon_best_overall.pth`
+
+and exposes:
+
+- `GET /healthz`
+- `POST /predict`
+
+### 2. Start the Docker UI and monitoring stack
+
+The Docker stack runs:
+
+- the hospital management app on `http://localhost:7860`
 - Prometheus on `http://localhost:9090`
 - Grafana on `http://localhost:3000`
+- Loki on `http://localhost:3100`
 - cAdvisor on `http://localhost:8080`
 
-The Docker image pre-downloads the Hugging Face base backbones during build, so the container does not need to fetch them at runtime.
+The UI container does **not** ship the model weights. It forwards uploaded images to the host model API at `http://host.docker.internal:8001`.
 
 ### Start the full stack
 
@@ -290,9 +321,12 @@ docker compose up --build
 - per-route request latency
 - inference counts
 - prediction and Grad-CAM latency
-- model artifact readiness
+- live model API metrics from the host-side inference server
+- model API availability
+- model artifact readiness reported by the host model API
 - app process CPU and memory
 - container CPU and memory through cAdvisor
+- Docker container logs in Grafana through Loki + Promtail
 
 ### Optional GPU monitoring
 
@@ -307,6 +341,119 @@ Important:
 - GPU monitoring inside Docker is **not available on Apple Silicon macOS containers**
 - on macOS you will still get app metrics, route hits, CPU, RAM, and container monitoring
 - the optional GPU profile is meant for NVIDIA-enabled Docker environments
+
+---
+
+## Kubernetes Deployment
+
+The repository also includes a **kubectl-first Kubernetes setup** under `k8s/`.
+
+### What runs in Kubernetes
+
+- `app` - the Cancer Hospital Management App UI
+- `prometheus` - metrics scraping and storage
+- `grafana` - dashboards
+- `loki` - log storage
+- `promtail` - pod log shipping
+- `cadvisor` - container CPU and memory metrics
+
+### Important assumption
+
+The Kubernetes app still expects the **model API** to run on your local machine at port `8001`.
+
+The manifest uses a Kubernetes `ExternalName` service called `model-api` that points to `host.docker.internal`, so this setup works best with **Docker Desktop Kubernetes** on macOS.
+
+Before running any `kubectl` deployment commands, enable Kubernetes in **Docker Desktop -> Settings -> Kubernetes**.
+
+If you are using Docker Desktop Kubernetes:
+
+```bash
+kubectl config use-context docker-desktop
+kubectl get nodes
+```
+
+For local image reuse, Docker Desktop's **`kubeadm` provisioner** works with the Docker image store, while **`kind` does not**. If Docker Desktop is currently set to `kind`, switch the provisioner to `kubeadm` in the Docker Desktop Kubernetes settings before deploying.
+
+Start the model API first:
+
+```bash
+python model_service.py --host 0.0.0.0 --port 8001
+```
+
+### Build the app image once
+
+The Kubernetes `app` Deployment uses the local image tag:
+
+```bash
+cancer-hospital-app:latest
+```
+
+If you already built the Docker stack, this image will usually already exist. If not:
+
+```bash
+docker build -t cancer-hospital-app:latest .
+```
+
+### Deploy everything with kubectl
+
+```bash
+kubectl apply -k k8s/
+```
+
+### Open the services locally
+
+```bash
+kubectl port-forward -n cancer-hospital svc/app 7860:7860
+kubectl port-forward -n cancer-hospital svc/prometheus 9090:9090
+kubectl port-forward -n cancer-hospital svc/grafana 3000:3000
+kubectl port-forward -n cancer-hospital svc/loki 3100:3100
+```
+
+Then open:
+
+- app: `http://localhost:7860`
+- Prometheus: `http://localhost:9090`
+- Grafana: `http://localhost:3000`
+
+### Grafana login
+
+- username: `admin`
+- password: `admin`
+
+### Kubernetes inspection commands
+
+```bash
+kubectl get all -n cancer-hospital
+kubectl get pods -n cancer-hospital -o wide
+kubectl get pods -n cancer-hospital -w
+kubectl describe pod -n cancer-hospital <pod-name>
+kubectl logs -n cancer-hospital deployment/app -f
+kubectl logs -n cancer-hospital deployment/prometheus -f
+kubectl logs -n cancer-hospital deployment/grafana -f
+kubectl logs -n cancer-hospital deployment/loki -f
+kubectl logs -n cancer-hospital deployment/cadvisor -f
+kubectl logs -n cancer-hospital daemonset/promtail -f
+```
+
+### Scaling commands
+
+```bash
+kubectl scale deployment app -n cancer-hospital --replicas=3
+kubectl rollout status deployment/app -n cancer-hospital
+kubectl rollout restart deployment/app -n cancer-hospital
+```
+
+### Remove the stack
+
+```bash
+kubectl delete -k k8s/
+```
+
+### Seeing the containers in a Kubernetes page
+
+If you are using **Docker Desktop Kubernetes**, use Docker Desktop's built-in **Kubernetes view** to see the managed pods and containers. This repository does **not** add a custom page for that.
+
+The current setup stays **kubectl-only** for deployment and operations. The official Kubernetes Dashboard is not included here.
 
 ---
 

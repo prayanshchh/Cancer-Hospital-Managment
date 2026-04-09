@@ -4,7 +4,7 @@
   },
   "editable": true,
   "fiscalYearStartMonth": 0,
-  "graphTooltip": 0,
+  "graphTooltip": 1,
   "id": null,
   "links": [],
   "liveNow": false,
@@ -22,7 +22,7 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 6,
+        "w": 4,
         "x": 0,
         "y": 0
       },
@@ -30,7 +30,7 @@
       "options": {
         "colorMode": "value",
         "graphMode": "area",
-        "justifyMode": "auto",
+        "justifyMode": "center",
         "orientation": "auto",
         "reduceOptions": {
           "calcs": [
@@ -43,7 +43,8 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(cancer_hospital_http_requests_total[5m]))",
+          "expr": "sum(increase(cancer_hospital_http_requests_total[5m])) or vector(0)",
+          "instant": true,
           "legendFormat": "hits",
           "refId": "A"
         }
@@ -64,15 +65,15 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 6,
-        "x": 6,
+        "w": 4,
+        "x": 4,
         "y": 0
       },
       "id": 2,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
-        "justifyMode": "auto",
+        "justifyMode": "center",
         "orientation": "auto",
         "reduceOptions": {
           "calcs": [
@@ -85,12 +86,124 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(cancer_hospital_inference_total{stage=\"prediction\",status=\"success\"}[5m]))",
-          "legendFormat": "predictions",
+          "expr": "sum(increase(cancer_hospital_inference_total{stage=\"prediction\",status=\"success\"}[5m])) or vector(0)",
+          "instant": true,
+          "legendFormat": "ui predictions",
           "refId": "A"
         }
       ],
-      "title": "Successful Predictions (5m)",
+      "title": "Successful Predictions (UI, 5m)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 0
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(increase(cancer_model_api_inference_total{stage=\"prediction\",status=\"success\"}[5m])) or vector(0)",
+          "instant": true,
+          "legendFormat": "model api predictions",
+          "refId": "A"
+        }
+      ],
+      "title": "Successful Predictions (Model API, 5m)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "text": "Offline"
+                },
+                "1": {
+                  "text": "Online"
+                }
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 0
+      },
+      "id": 4,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value"
+      },
+      "targets": [
+        {
+          "expr": "max(cancer_hospital_model_service_available) or vector(0)",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Model API Status",
       "type": "stat"
     },
     {
@@ -106,15 +219,15 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 6,
-        "x": 12,
+        "w": 4,
+        "x": 16,
         "y": 0
       },
-      "id": 3,
+      "id": 5,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
-        "justifyMode": "auto",
+        "justifyMode": "center",
         "orientation": "auto",
         "reduceOptions": {
           "calcs": [
@@ -127,12 +240,13 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(container_cpu_usage_seconds_total{container_label_com_docker_compose_service=\"app\"}[5m]))",
-          "legendFormat": "cpu",
+          "expr": "sum(rate(container_cpu_usage_seconds_total{id=~\"/docker/[0-9a-f]+\",cpu=\"total\"}[5m])) or vector(0)",
+          "instant": true,
+          "legendFormat": "docker cpu",
           "refId": "A"
         }
       ],
-      "title": "Container CPU Usage",
+      "title": "Docker CPU (All Containers)",
       "type": "stat"
     },
     {
@@ -148,15 +262,15 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 6,
-        "x": 18,
+        "w": 4,
+        "x": 20,
         "y": 0
       },
-      "id": 4,
+      "id": 6,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
-        "justifyMode": "auto",
+        "justifyMode": "center",
         "orientation": "auto",
         "reduceOptions": {
           "calcs": [
@@ -169,12 +283,13 @@
       },
       "targets": [
         {
-          "expr": "sum(container_memory_working_set_bytes{container_label_com_docker_compose_service=\"app\"})",
-          "legendFormat": "memory",
+          "expr": "sum(container_memory_working_set_bytes{id=~\"/docker/[0-9a-f]+\"}) or vector(0)",
+          "instant": true,
+          "legendFormat": "docker memory",
           "refId": "A"
         }
       ],
-      "title": "Container Memory",
+      "title": "Docker Memory (All Containers)",
       "type": "stat"
     },
     {
@@ -184,7 +299,85 @@
       },
       "fieldConfig": {
         "defaults": {
+          "custom": {
+            "align": "auto"
+          },
           "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 10,
+        "x": 0,
+        "y": 4
+      },
+      "id": 7,
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Value"
+          }
+        ]
+      },
+      "targets": [
+        {
+          "expr": "sort_desc(sum by (route, method, status_code) (increase(cancer_hospital_http_requests_total[5m])))",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Requests by Route (5m)",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 14,
+        "x": 10,
+        "y": 4
+      },
+      "id": 8,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (route) (rate(cancer_hospital_http_requests_total[$__rate_interval]))",
+          "legendFormat": "{{route}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Live Route Throughput",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
         },
         "overrides": []
       },
@@ -192,26 +385,26 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 4
+        "y": 12
       },
-      "id": 5,
+      "id": 9,
       "options": {
         "legend": {
           "displayMode": "list",
           "placement": "bottom"
         },
         "tooltip": {
-          "mode": "single"
+          "mode": "multi"
         }
       },
       "targets": [
         {
-          "expr": "sum by (route) (increase(cancer_hospital_http_requests_total[5m]))",
+          "expr": "histogram_quantile(0.95, sum by (le, route) (rate(cancer_hospital_http_request_duration_seconds_bucket[$__rate_interval])))",
           "legendFormat": "{{route}}",
           "refId": "A"
         }
       ],
-      "title": "Route Hits by Route (5m)",
+      "title": "Route Latency p95",
       "type": "timeseries"
     },
     {
@@ -229,9 +422,9 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 4
+        "y": 12
       },
-      "id": 6,
+      "id": 10,
       "options": {
         "legend": {
           "displayMode": "list",
@@ -243,12 +436,17 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum by (le, route) (rate(cancer_hospital_http_request_duration_seconds_bucket[5m])))",
-          "legendFormat": "{{route}}",
+          "expr": "histogram_quantile(0.95, sum by (le, stage) (rate(cancer_hospital_inference_duration_seconds_bucket[$__rate_interval])))",
+          "legendFormat": "UI {{stage}}",
           "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, stage) (rate(cancer_model_api_inference_duration_seconds_bucket[$__rate_interval])))",
+          "legendFormat": "Model API {{stage}}",
+          "refId": "B"
         }
       ],
-      "title": "Route Latency p95",
+      "title": "Inference Stage Latency p95",
       "type": "timeseries"
     },
     {
@@ -266,31 +464,31 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 12
+        "y": 20
       },
-      "id": 7,
+      "id": 11,
       "options": {
         "legend": {
           "displayMode": "list",
           "placement": "bottom"
         },
         "tooltip": {
-          "mode": "single"
+          "mode": "multi"
         }
       },
       "targets": [
         {
           "expr": "process_resident_memory_bytes",
-          "legendFormat": "app rss",
+          "legendFormat": "UI process memory",
           "refId": "A"
         },
         {
-          "expr": "sum(container_memory_working_set_bytes{container_label_com_docker_compose_service=\"app\"})",
-          "legendFormat": "container working set",
+          "expr": "sum(container_memory_working_set_bytes{id=~\"/docker/[0-9a-f]+\"})",
+          "legendFormat": "All docker containers",
           "refId": "B"
         }
       ],
-      "title": "App vs Container Memory",
+      "title": "App vs Docker Memory",
       "type": "timeseries"
     },
     {
@@ -300,7 +498,7 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "short"
+          "unit": "percentunit"
         },
         "overrides": []
       },
@@ -308,31 +506,31 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 12
+        "y": 20
       },
-      "id": 8,
+      "id": 12,
       "options": {
         "legend": {
           "displayMode": "list",
           "placement": "bottom"
         },
         "tooltip": {
-          "mode": "single"
+          "mode": "multi"
         }
       },
       "targets": [
         {
-          "expr": "rate(process_cpu_seconds_total[5m])",
-          "legendFormat": "app process cpu",
+          "expr": "rate(process_cpu_seconds_total[$__rate_interval])",
+          "legendFormat": "UI process cpu",
           "refId": "A"
         },
         {
-          "expr": "sum(rate(container_cpu_usage_seconds_total{container_label_com_docker_compose_service=\"app\"}[5m]))",
-          "legendFormat": "container cpu",
+          "expr": "sum(rate(container_cpu_usage_seconds_total{id=~\"/docker/[0-9a-f]+\",cpu=\"total\"}[$__rate_interval]))",
+          "legendFormat": "All docker containers",
           "refId": "B"
         }
       ],
-      "title": "App vs Container CPU",
+      "title": "App vs Docker CPU",
       "type": "timeseries"
     },
     {
@@ -342,7 +540,10 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "bytes"
+          "custom": {
+            "align": "auto"
+          },
+          "unit": "short"
         },
         "overrides": []
       },
@@ -350,56 +551,9 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 12
-      },
-      "id": 9,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "single"
-        }
-      },
-      "targets": [
-        {
-          "expr": "cancer_hospital_gpu_memory_allocated_bytes",
-          "legendFormat": "app gpu allocated",
-          "refId": "A"
-        },
-        {
-          "expr": "cancer_hospital_gpu_memory_reserved_bytes",
-          "legendFormat": "app gpu reserved",
-          "refId": "B"
-        },
-        {
-          "expr": "max(DCGM_FI_DEV_GPU_UTIL)",
-          "legendFormat": "gpu util (dcgm)",
-          "refId": "C"
-        }
-      ],
-      "title": "GPU Metrics",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 24,
-        "x": 0,
         "y": 20
       },
-      "id": 10,
+      "id": 13,
       "options": {
         "showHeader": true
       },
@@ -408,24 +562,61 @@
           "expr": "sum by (artifact) (cancer_hospital_model_artifact_ready)",
           "format": "table",
           "instant": true,
-          "legendFormat": "{{artifact}}",
           "refId": "A"
         },
         {
-          "expr": "sum by (backend) (cancer_hospital_gpu_available)",
+          "expr": "sum by (artifact) (cancer_model_api_artifact_ready)",
           "format": "table",
           "instant": true,
-          "legendFormat": "{{backend}}",
           "refId": "B"
+        },
+        {
+          "expr": "sum by (backend) (cancer_model_api_device_available)",
+          "format": "table",
+          "instant": true,
+          "refId": "C"
         }
       ],
       "title": "Runtime Readiness",
       "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 28
+      },
+      "id": 14,
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": false,
+        "showCommonLabels": false,
+        "showLabels": true,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "{service_name=~\"cancer-hospital-.*\"}",
+          "maxLines": 200,
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "Docker Container Logs",
+      "type": "logs"
     }
   ],
-  "refresh": "15s",
+  "refresh": "5s",
   "schemaVersion": 39,
-  "style": "dark",
   "tags": [
     "cancer",
     "hospital",
@@ -435,13 +626,13 @@
     "list": []
   },
   "time": {
-    "from": "now-6h",
+    "from": "now-15m",
     "to": "now"
   },
   "timepicker": {},
-  "timezone": "browser",
+  "timezone": "",
   "title": "Cancer Hospital Observability",
   "uid": "cancer-hospital-observability",
-  "version": 1,
+  "version": 2,
   "weekStart": ""
 }

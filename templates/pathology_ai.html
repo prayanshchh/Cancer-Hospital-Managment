@@ -60,6 +60,12 @@
         <span class="panel-kicker">Upload</span>
         <h2>Analyze Slide for {{ selected_patient.name }}</h2>
       </div>
+      <div class="badge-row">
+        <span class="status-chip status-chip--{% if model_service_reachable %}success{% else %}danger{% endif %}">
+          {% if model_service_reachable %}Model API online{% else %}Model API offline{% endif %}
+        </span>
+        <span class="status-chip status-chip--neutral">{{ model_service_url }}</span>
+      </div>
       {% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
       <form class="upload-form" method="post" enctype="multipart/form-data">
         <input type="hidden" name="patient_id" value="{{ selected_patient.id }}">

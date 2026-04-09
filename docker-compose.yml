@@ -1,5 +1,6 @@
 services:
   app:
+    image: cancer-hospital-app:latest
     build:
       context: .
       dockerfile: Dockerfile
@@ -8,10 +9,10 @@ services:
     ports:
       - "7860:7860"
     environment:
-      HF_HOME: /opt/huggingface
-      TRANSFORMERS_CACHE: /opt/huggingface
-      HF_LOCAL_FILES_ONLY: "1"
-      MPLBACKEND: Agg
+      MODEL_API_URL: http://host.docker.internal:8001
+      MODEL_API_TIMEOUT_SECONDS: "300"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   prometheus:
     image: prom/prometheus:latest
@@ -24,6 +25,8 @@ services:
     volumes:
       - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.path=/prometheus"
@@ -35,6 +38,7 @@ services:
     restart: unless-stopped
     depends_on:
       - prometheus
+      - loki
     ports:
       - "3000:3000"
     environment:
@@ -46,6 +50,31 @@ services:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
 
+  loki:
+    image: grafana/loki:latest
+    container_name: cancer-hospital-loki
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    command:
+      - "-config.file=/etc/loki/config.yml"
+    volumes:
+      - ./monitoring/loki/loki-config.yml:/etc/loki/config.yml:ro
+      - loki_data:/loki
+
+  promtail:
+    image: grafana/promtail:latest
+    container_name: cancer-hospital-promtail
+    restart: unless-stopped
+    depends_on:
+      - loki
+    command:
+      - "-config.file=/etc/promtail/config.yml"
+    volumes:
+      - ./monitoring/promtail/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:latest
     container_name: cancer-hospital-cadvisor
@@ -55,6 +84,7 @@ services:
     volumes:
       - /:/rootfs:ro
       - /var/run:/var/run:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
       - /sys:/sys:ro
       - /var/lib/docker:/var/lib/docker:ro
 
@@ -74,3 +104,4 @@ services:
 volumes:
   prometheus_data:
   grafana_data:
+  loki_data:

@@ -1,21 +1,18 @@
 import base64
 import io
-import os
 import time
 from typing import Any, Dict, List
 
-import torch
 from flask import Flask, Response, g, redirect, render_template, request, url_for
 from PIL import Image
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, generate_latest
 
-from runtime import build_gradcam_explanation, predict_image
-
-
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-MODEL_PATH = os.path.join(BASE_DIR, "ultimate_patho_fusion_v1.pkl")
-CONVNEXT_PATH = os.path.join(BASE_DIR, "convnext_v2_epoch_30.pth")
-PHIKON_PATH = os.path.join(BASE_DIR, "phikon_best_overall.pth")
+from model_client import (
+    ModelServiceError,
+    fetch_model_service_health,
+    get_model_api_url,
+    predict_with_model_service,
+)
 
 APP_NAME = "Cancer Hospital Management App"
 TODAY = "2026-04-08"
@@ -49,25 +46,29 @@ INFERENCE_DURATION_SECONDS = Histogram(
 )
 MODEL_ARTIFACT_READY = Gauge(
     "cancer_hospital_model_artifact_ready",
-    "Whether required model artifacts are present on disk.",
+    "Whether required model artifacts are available in the host-side model service.",
     ["artifact"],
+)
+MODEL_SERVICE_AVAILABLE = Gauge(
+    "cancer_hospital_model_service_available",
+    "Whether the host-side model service can be reached.",
 )
 GPU_AVAILABLE = Gauge(
     "cancer_hospital_gpu_available",
-    "Whether a GPU backend is available to the process.",
+    "Whether a GPU backend is available to the host-side model service.",
     ["backend"],
 )
 GPU_DEVICE_COUNT = Gauge(
     "cancer_hospital_gpu_device_count",
-    "Number of CUDA devices visible to the app.",
+    "Number of CUDA devices visible to the host-side model service.",
 )
 GPU_MEMORY_ALLOCATED_BYTES = Gauge(
     "cancer_hospital_gpu_memory_allocated_bytes",
-    "CUDA memory allocated by the process.",
+    "CUDA memory allocated by the host-side model service.",
 )
 GPU_MEMORY_RESERVED_BYTES = Gauge(
     "cancer_hospital_gpu_memory_reserved_bytes",
-    "CUDA memory reserved by the process.",
+    "CUDA memory reserved by the host-side model service.",
 )
 
 
@@ -1146,6 +1147,28 @@ def get_modal_name() -> str | None:
     return request.args.get("modal")
 
 
+def get_model_service_status(silent: bool = True) -> Dict[str, Any] | None:
+    try:
+        return fetch_model_service_health()
+    except ModelServiceError:
+        if silent:
+            return None
+        raise
+
+
+def build_model_service_context() -> Dict[str, Any]:
+    health = get_model_service_status(silent=True)
+    artifacts = health.get("artifacts", {}) if health else {}
+    return {
+        "model_service_url": get_model_api_url(),
+        "model_service_reachable": bool(health and health.get("status") == "ok"),
+        "model_ready": bool(artifacts.get("fusion", False)),
+        "convnext_ready": bool(artifacts.get("convnext", False)),
+        "phikon_ready": bool(artifacts.get("phikon", False)),
+        "model_service_health": health,
+    }
+
+
 def metrics_route_label() -> str:
     if request.url_rule is not None and request.url_rule.rule:
         return request.url_rule.rule
@@ -1157,23 +1180,40 @@ def should_skip_metrics(path: str) -> bool:
 
 
 def update_runtime_metrics() -> None:
-    MODEL_ARTIFACT_READY.labels(artifact="fusion").set(1 if os.path.exists(MODEL_PATH) else 0)
-    MODEL_ARTIFACT_READY.labels(artifact="convnext").set(1 if os.path.exists(CONVNEXT_PATH) else 0)
-    MODEL_ARTIFACT_READY.labels(artifact="phikon").set(1 if os.path.exists(PHIKON_PATH) else 0)
+    health = get_model_service_status(silent=True)
+    artifacts = health.get("artifacts", {}) if health else {}
+    device_info = health.get("device", {}) if health else {}
 
-    cuda_available = 1 if torch.cuda.is_available() else 0
-    mps_available = 1 if hasattr(torch.backends, "mps") and torch.backends.mps.is_available() else 0
-    GPU_AVAILABLE.labels(backend="cuda").set(cuda_available)
-    GPU_AVAILABLE.labels(backend="mps").set(mps_available)
+    MODEL_SERVICE_AVAILABLE.set(1 if health else 0)
+    MODEL_ARTIFACT_READY.labels(artifact="fusion").set(1 if artifacts.get("fusion") else 0)
+    MODEL_ARTIFACT_READY.labels(artifact="convnext").set(1 if artifacts.get("convnext") else 0)
+    MODEL_ARTIFACT_READY.labels(artifact="phikon").set(1 if artifacts.get("phikon") else 0)
 
-    if cuda_available:
-        GPU_DEVICE_COUNT.set(torch.cuda.device_count())
-        GPU_MEMORY_ALLOCATED_BYTES.set(torch.cuda.memory_allocated())
-        GPU_MEMORY_RESERVED_BYTES.set(torch.cuda.memory_reserved())
-    else:
-        GPU_DEVICE_COUNT.set(0)
-        GPU_MEMORY_ALLOCATED_BYTES.set(0)
-        GPU_MEMORY_RESERVED_BYTES.set(0)
+    GPU_AVAILABLE.labels(backend="cuda").set(1 if device_info.get("cuda") else 0)
+    GPU_AVAILABLE.labels(backend="mps").set(1 if device_info.get("mps") else 0)
+    GPU_DEVICE_COUNT.set(int(device_info.get("cuda_device_count", 0) or 0))
+    GPU_MEMORY_ALLOCATED_BYTES.set(0)
+    GPU_MEMORY_RESERVED_BYTES.set(0)
+
+
+def initialize_metrics() -> None:
+    for rule in app.url_map.iter_rules():
+        if rule.rule.startswith("/static/"):
+            continue
+        methods = sorted(method for method in rule.methods if method in {"GET", "POST"})
+        for method in methods:
+            HTTP_REQUESTS_TOTAL.labels(method=method, route=rule.rule, status_code="200")
+            HTTP_REQUEST_DURATION_SECONDS.labels(method=method, route=rule.rule)
+
+    for stage in ("upload", "prediction", "gradcam"):
+        for status in ("success", "error"):
+            INFERENCE_TOTAL.labels(stage=stage, status=status)
+
+    MODEL_ARTIFACT_READY.labels(artifact="fusion")
+    MODEL_ARTIFACT_READY.labels(artifact="convnext")
+    MODEL_ARTIFACT_READY.labels(artifact="phikon")
+    GPU_AVAILABLE.labels(backend="cuda")
+    GPU_AVAILABLE.labels(backend="mps")
 
 
 @app.context_processor
@@ -1380,18 +1420,12 @@ def home() -> str:
 @app.route("/healthz")
 def healthz() -> Dict[str, Any]:
     update_runtime_metrics()
+    model_health = get_model_service_status(silent=True)
     return {
-        "status": "ok",
+        "status": "ok" if model_health else "degraded",
         "app": APP_NAME,
-        "models": {
-            "fusion": os.path.exists(MODEL_PATH),
-            "convnext": os.path.exists(CONVNEXT_PATH),
-            "phikon": os.path.exists(PHIKON_PATH),
-        },
-        "gpu": {
-            "cuda": torch.cuda.is_available(),
-            "mps": hasattr(torch.backends, "mps") and torch.backends.mps.is_available(),
-        },
+        "model_service_url": get_model_api_url(),
+        "model_service": model_health,
     }
 
 
@@ -1488,6 +1522,7 @@ def pathology_ai() -> str:
         selected_patient["prediction_key"],
         selected_patient["prediction_confidence"],
     )
+    model_context = build_model_service_context()
     context: Dict[str, Any] = {
         "active_page": "pathology_ai",
         "page_title": "Pathology AI Analysis",
@@ -1500,11 +1535,9 @@ def pathology_ai() -> str:
         "uploaded_image": None,
         "gradcam_image": None,
         "analysis_summary": analysis_summary,
-        "model_ready": os.path.exists(MODEL_PATH),
-        "convnext_ready": os.path.exists(CONVNEXT_PATH),
-        "phikon_ready": os.path.exists(PHIKON_PATH),
         "page_message": get_page_message(),
     }
+    context.update(model_context)
 
     if request.method == "POST":
         uploaded = request.files.get("image")
@@ -1514,20 +1547,26 @@ def pathology_ai() -> str:
             return render_template("pathology_ai.html", **context)
 
         try:
-            image = Image.open(uploaded.stream).convert("RGB")
+            image_bytes = uploaded.read()
+            image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
             context["uploaded_image"] = pil_to_data_url(image, fmt="PNG")
             prediction_started_at = time.perf_counter()
-            prediction = predict_image(
-                image=image,
-                convnext_weights=CONVNEXT_PATH,
-                phikon_weights=PHIKON_PATH,
-                meta_model_path=MODEL_PATH,
+            prediction = predict_with_model_service(
+                image_bytes=image_bytes,
+                filename=uploaded.filename or f"{requested_patient_id}.png",
+                include_gradcam=True,
             )
             INFERENCE_DURATION_SECONDS.labels(stage="prediction").observe(
                 time.perf_counter() - prediction_started_at
             )
             INFERENCE_TOTAL.labels(stage="prediction", status="success").inc()
-            context["result"] = prediction
+            context["model_service_reachable"] = True
+            context["result"] = {
+                "prediction": prediction["prediction"],
+                "class_probabilities": prediction["class_probabilities"],
+                "model_breakdown": prediction["model_breakdown"],
+                "top_predictions": prediction["top_predictions"],
+            }
             apply_prediction_to_patient(
                 requested_patient_id,
                 prediction["prediction"]["class_key"],
@@ -1540,25 +1579,15 @@ def pathology_ai() -> str:
                 refreshed_patient["prediction_key"],
                 refreshed_patient["prediction_confidence"],
             )
-
-            try:
-                gradcam_started_at = time.perf_counter()
-                gradcam = build_gradcam_explanation(
-                    image=image,
-                    convnext_checkpoint_path=CONVNEXT_PATH,
-                    target_idx=prediction["prediction"]["class_index"],
-                )
-                INFERENCE_DURATION_SECONDS.labels(stage="gradcam").observe(
-                    time.perf_counter() - gradcam_started_at
-                )
+            if prediction.get("gradcam_image_data_url"):
+                gradcam_seconds = ((prediction.get("timings") or {}).get("gradcam_seconds"))
+                if gradcam_seconds is not None:
+                    INFERENCE_DURATION_SECONDS.labels(stage="gradcam").observe(float(gradcam_seconds))
                 INFERENCE_TOTAL.labels(stage="gradcam", status="success").inc()
-                context["gradcam_image"] = pil_to_data_url(gradcam["overlay"], fmt="PNG")
-            except Exception as exc:
+                context["gradcam_image"] = prediction["gradcam_image_data_url"]
+            elif prediction.get("xai_error"):
                 INFERENCE_TOTAL.labels(stage="gradcam", status="error").inc()
-                context["xai_error"] = (
-                    "Prediction completed, but Grad-CAM could not be generated. "
-                    f"{exc}"
-                )
+                context["xai_error"] = prediction["xai_error"]
         except Exception as exc:
             INFERENCE_TOTAL.labels(stage="prediction", status="error").inc()
             context["error"] = str(exc)
@@ -1631,6 +1660,9 @@ def admin() -> str:
         wards=WARD_SUMMARY,
         page_message=get_page_message(),
     )
+
+
+initialize_metrics()
 
 
 if __name__ == "__main__":

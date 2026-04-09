@@ -1,3 +1,4 @@
+import io
 import os
 import sys
 from functools import lru_cache
@@ -8,10 +9,10 @@ import matplotlib
 import numpy as np
 import torch
 import torch.nn as nn
-from captum.attr import LayerAttribution, LayerGradCam
+import torch.nn.functional as F
 from PIL import Image
 import torchvision.transforms as transforms
-from transformers import AutoModel
+from transformers import ConvNextV2Config, ConvNextV2Model, ViTConfig, ViTModel
 
 
 matplotlib.use("Agg")
@@ -56,11 +57,17 @@ LABEL_METADATA = {
 
 
 class StreamA_ConvNeXtV2(nn.Module):
-    def __init__(self, num_classes: int = 5, local_files_only: bool = False):
+    def __init__(self, num_classes: int = 5):
         super().__init__()
-        self.base = AutoModel.from_pretrained(
-            "facebook/convnextv2-base-22k-224",
-            local_files_only=local_files_only,
+        self.base = ConvNextV2Model(
+            ConvNextV2Config(
+                num_channels=3,
+                depths=[3, 3, 27, 3],
+                hidden_sizes=[128, 256, 512, 1024],
+                image_size=224,
+                patch_size=4,
+                hidden_act="gelu",
+            )
         )
         self.head = nn.Sequential(
             nn.Linear(1024, 256),
@@ -79,11 +86,20 @@ class StreamA_ConvNeXtV2(nn.Module):
 
 
 class StreamB_Phikon(nn.Module):
-    def __init__(self, num_classes: int = 5, local_files_only: bool = False):
+    def __init__(self, num_classes: int = 5):
         super().__init__()
-        self.base = AutoModel.from_pretrained(
-            "owkin/phikon",
-            local_files_only=local_files_only,
+        self.base = ViTModel(
+            ViTConfig(
+                image_size=224,
+                patch_size=16,
+                num_channels=3,
+                hidden_size=768,
+                num_hidden_layers=12,
+                num_attention_heads=12,
+                intermediate_size=3072,
+                qkv_bias=True,
+                hidden_act="gelu",
+            )
         )
         for param in self.base.parameters():
             param.requires_grad = False
@@ -131,16 +147,27 @@ def get_device() -> torch.device:
     return torch.device("cpu")
 
 
-def use_local_hf_files() -> bool:
-    value = os.getenv("HF_LOCAL_FILES_ONLY", "").strip().lower()
-    return value in {"1", "true", "yes", "on"}
-
-
 def register_pickle_classes() -> None:
     main_module = sys.modules["__main__"]
     setattr(main_module, "StreamA_ConvNeXtV2", StreamA_ConvNeXtV2)
     setattr(main_module, "StreamB_Phikon", StreamB_Phikon)
     setattr(main_module, "PathoFusionEnsemble", PathoFusionEnsemble)
+
+
+def load_joblib_model_on_cpu(path: str) -> Any:
+    original_loader = getattr(torch.storage, "_load_from_bytes", None)
+    if original_loader is None:
+        return joblib.load(path)
+
+    def _cpu_load_from_bytes(serialized_bytes: bytes) -> Any:
+        buffer = io.BytesIO(serialized_bytes)
+        return torch.load(buffer, map_location="cpu", weights_only=False)
+
+    torch.storage._load_from_bytes = _cpu_load_from_bytes
+    try:
+        return joblib.load(path)
+    finally:
+        torch.storage._load_from_bytes = original_loader
 
 
 def build_transform() -> transforms.Compose:
@@ -158,11 +185,8 @@ def load_runtime_bundle(
     convnext_weights: str,
     phikon_weights: str,
     meta_model_path: str,
-    local_files_only: Optional[bool] = None,
 ) -> Tuple[StreamA_ConvNeXtV2, StreamB_Phikon, Any, torch.device]:
     device = get_device()
-    if local_files_only is None:
-        local_files_only = use_local_hf_files()
 
     if not os.path.exists(convnext_weights):
         raise FileNotFoundError(
@@ -180,34 +204,32 @@ def load_runtime_bundle(
             f"Make sure '{META_MODEL_NAME}' is present in the project root."
         )
 
-    model_a = StreamA_ConvNeXtV2(num_classes=len(CLASS_NAMES), local_files_only=local_files_only)
+    model_a = StreamA_ConvNeXtV2(num_classes=len(CLASS_NAMES))
     model_a.load_state_dict(torch.load(convnext_weights, map_location=device))
     model_a = model_a.to(device).eval()
 
-    model_b = StreamB_Phikon(num_classes=len(CLASS_NAMES), local_files_only=local_files_only)
+    model_b = StreamB_Phikon(num_classes=len(CLASS_NAMES))
     model_b.load_state_dict(torch.load(phikon_weights, map_location=device), strict=False)
     model_b = model_b.to(device).eval()
 
     register_pickle_classes()
-    meta_model = joblib.load(meta_model_path)
+    loaded_meta_model = load_joblib_model_on_cpu(meta_model_path)
+    meta_model = loaded_meta_model.meta_model if hasattr(loaded_meta_model, "meta_model") else loaded_meta_model
     return model_a, model_b, meta_model, device
 
 
 @lru_cache(maxsize=1)
 def load_convnext_model(
     convnext_weights: str,
-    local_files_only: Optional[bool] = None,
 ) -> Tuple[StreamA_ConvNeXtV2, torch.device]:
     device = get_device()
-    if local_files_only is None:
-        local_files_only = use_local_hf_files()
     if not os.path.exists(convnext_weights):
         raise FileNotFoundError(
             f"Could not find ConvNeXt checkpoint at '{convnext_weights}'. "
             f"Make sure '{CONVNEXT_CHECKPOINT_NAME}' is present in the project root."
         )
 
-    model = StreamA_ConvNeXtV2(num_classes=len(CLASS_NAMES), local_files_only=local_files_only)
+    model = StreamA_ConvNeXtV2(num_classes=len(CLASS_NAMES))
     model.load_state_dict(torch.load(convnext_weights, map_location=device))
     model = model.to(device).eval()
     return model, device
@@ -420,6 +442,14 @@ def overlay_heatmap(image_array: np.ndarray, heatmap: np.ndarray) -> Image.Image
     return Image.fromarray(overlay_uint8)
 
 
+def ensure_nchw(tensor: torch.Tensor) -> torch.Tensor:
+    if tensor.ndim != 4:
+        raise ValueError(f"Expected a 4D activation tensor, received shape {tuple(tensor.shape)}")
+    if tensor.shape[-1] > tensor.shape[1]:
+        return tensor.permute(0, 3, 1, 2).contiguous()
+    return tensor
+
+
 def build_gradcam_explanation(
     image: Image.Image,
     convnext_checkpoint_path: str,
@@ -428,21 +458,41 @@ def build_gradcam_explanation(
     model, device = load_convnext_model(convnext_checkpoint_path)
     input_tensor = preprocess_image(image).to(device)
     input_tensor.requires_grad_(True)
-    with torch.inference_mode():
+    target_layer = get_last_tensor_layer(model)
+    captured: Dict[str, torch.Tensor] = {}
+
+    def forward_hook(_: nn.Module, __: Tuple[torch.Tensor, ...], output: torch.Tensor) -> None:
+        captured["activations"] = output
+
+    def backward_hook(_: nn.Module, __: Tuple[torch.Tensor, ...], grad_output: Tuple[torch.Tensor, ...]) -> None:
+        captured["gradients"] = grad_output[0]
+
+    forward_handle = target_layer.register_forward_hook(forward_hook)
+    backward_handle = target_layer.register_full_backward_hook(backward_hook)
+
+    try:
+        model.zero_grad(set_to_none=True)
         logits = model(input_tensor)
         convnext_probs = torch.softmax(logits, dim=1).detach().cpu().numpy()[0]
         if target_idx is None:
             target_idx = int(np.argmax(convnext_probs))
 
-    target_layer = get_last_tensor_layer(model)
-    layer_gc = LayerGradCam(model, target_layer)
-    gc_attr = layer_gc.attribute(input_tensor, target=target_idx)
-    gc_attr = LayerAttribution.interpolate(gc_attr, input_tensor.shape[2:])
-    heatmap = gc_attr.squeeze().detach().cpu().numpy()
-    heatmap = np.maximum(heatmap, 0)
-    heatmap = heatmap / (np.max(heatmap) + 1e-8)
+        score = logits[:, target_idx].sum()
+        score.backward()
 
-    original = denormalize_image(input_tensor)
+        activations = ensure_nchw(captured["activations"].detach())
+        gradients = ensure_nchw(captured["gradients"].detach())
+        weights = gradients.mean(dim=(2, 3), keepdim=True)
+        cam = torch.relu((weights * activations).sum(dim=1, keepdim=True))
+        cam = F.interpolate(cam, size=input_tensor.shape[2:], mode="bilinear", align_corners=False)
+        heatmap = cam.squeeze().detach().cpu().numpy()
+        heatmap = np.maximum(heatmap, 0)
+        heatmap = heatmap / (np.max(heatmap) + 1e-8)
+    finally:
+        forward_handle.remove()
+        backward_handle.remove()
+
+    original = denormalize_image(input_tensor.detach())
     overlay = overlay_heatmap(original, heatmap)
 
     return {
